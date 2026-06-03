@@ -1,6 +1,6 @@
 <!-- URL GLOBAL PETICIONES POST          /agro.com       -->
 <script type="text/javascript">
-    var urlAdmin = "/agro.com";
+    const urlAdmin = "{{ config('app.url') }}"
 </script>
 
 <!-- ICONO GLOBAL DE LAS PESTAÑAS -->
