@@ -5,10 +5,6 @@ namespace App\Http\Controllers\Sistema;
 use App\Http\Controllers\Controller;
 use App\Models\Entradas;
 use App\Models\EntradasDetalle;
-use App\Models\Herramientas;
-use App\Models\HistoHerramientaDescartada;
-use App\Models\HistorialEntradas;
-use App\Models\HistorialEntradasDeta;
 use App\Models\Materiales;
 use App\Models\ObjetoEspecifico;
 use App\Models\SalidasDetalle;
@@ -120,6 +116,18 @@ class RepuestosController extends Controller
             'id_objespecifico' => 'required|exists:objeto_especifico,id',
         ]);
         if ($validar->fails()) { return ['success' => 0]; }
+
+        // Bloquear edición si el material ya tiene entradas registradas.
+        // (El botón "Editar" ya se deshabilita en la vista, pero validamos
+        // también aquí por si el endpoint se llama directamente).
+        $tieneEntradas = EntradasDetalle::where('id_material', $request->id)->exists();
+
+        if ($tieneEntradas) {
+            return [
+                'success' => 3,
+                'msg'     => 'Este material ya tiene entradas registradas y no puede editarse.',
+            ];
+        }
 
         Materiales::where('id', $request->id)->update([
             'id_medida'        => $request->unidad ?: null,
@@ -326,56 +334,6 @@ class RepuestosController extends Controller
             ],
         ]);
     }
-
-
-
-
-
-    //*******************************************
-
-    public function vistaDetalleMaterial($id){
-
-        $infomaterial = Materiales::where('id', $id)->first();
-        $medida = '';
-        if($infoMedida = UnidadMedida::where('id', $infomaterial->id_medida)->first()){
-            $medida = $infoMedida->nombre;
-        }
-
-        return view('backend.admin.inventario.detalle.vistadetalle', compact('id', 'infomaterial', 'medida'));
-    }
-
-
-    public function tablaDetalleMaterial($id){
-
-        // SOLO HABRA 1 MATERIAL POR CADA PROYECTO
-        $arrayEntradas =  Entradas::where('id_material', $id)->get();
-
-        $pilaArrayEntrada = array();
-
-
-        foreach ($arrayEntradas as $data){
-
-            // VERIFICAR QUE LA CANTIDAD SEA MAYOR A 0 PARA PODER
-            // MOSTRARLO
-            if($data->cantidad > 0){
-                array_push($pilaArrayEntrada, $data->id);
-            }
-        }
-
-        $lista = Entradas::whereIn('id', $pilaArrayEntrada)
-            ->orderBy('id_tipoproyecto', 'ASC')
-            ->get();
-
-        foreach ($lista as $info){
-            // OBTENER NOMBRE DE PROYECTO
-
-            $infoProyecto = TipoProyecto::where('id', $info->id_tipoproyecto)->first();
-            $info->nombrepro = $infoProyecto->nombre;
-        }
-
-        return view('backend.admin.inventario.detalle.tabladetallematerial', compact('lista'));
-    }
-
 
 
 }

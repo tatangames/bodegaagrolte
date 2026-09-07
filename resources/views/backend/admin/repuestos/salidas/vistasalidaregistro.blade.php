@@ -142,37 +142,15 @@
 
                     <div class="card-body">
 
-                        {{-- Fila 1: Fecha + N. Talonario + Nombre --}}
+                        {{-- Fila 1: Fecha + Proyecto --}}
                         <div class="row">
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <div class="form-group">
                                     <label class="field-label"><i class="fas fa-calendar-alt mr-1"></i>Fecha</label>
                                     <input type="date" class="form-control" id="fecha">
                                 </div>
                             </div>
-                            <div class="col-md-2">
-                                <div class="form-group">
-                                    <label class="field-label">
-                                        <i class="fas fa-hashtag mr-1"></i>N. Talonario
-                                        <small style="text-transform:none; font-weight:400">(Opc.)</small>
-                                    </label>
-                                    <input type="text" class="form-control" autocomplete="off" maxlength="50" id="n_talonario" placeholder="Ej: 001">
-                                </div>
-                            </div>
-                            <div class="col-md-7">
-                                <div class="form-group">
-                                    <label class="field-label">
-                                        <i class="fas fa-user mr-1"></i>Nombre
-                                        <small style="text-transform:none; font-weight:400">(Opc.)</small>
-                                    </label>
-                                    <input type="text" class="form-control" autocomplete="off" maxlength="100" id="nombre_recibe" placeholder="Nombre de quien recibe…">
-                                </div>
-                            </div>
-                        </div>
-
-                        {{-- Fila 2: Proyecto --}}
-                        <div class="row">
-                            <div class="col-md-12">
+                            <div class="col-md-10">
                                 <div class="form-group">
                                     <label class="field-label"><i class="fas fa-map-marker-alt mr-1"></i>Proyecto</label>
                                     <select class="form-control" id="select-proyecto">
@@ -187,7 +165,7 @@
 
                         <hr class="divider-azul">
 
-                        {{-- Fila 3: Descripción y botón --}}
+                        {{-- Fila 2: Descripción + Botón --}}
                         <div class="row align-items-end">
                             <div class="col-md-8 mb-2">
                                 <label class="field-label">
@@ -220,8 +198,8 @@
                     <div class="seccion-header" style="border-radius:10px 10px 0 0; display:flex; justify-content:space-between; align-items:center">
                         <h3><i class="fas fa-list mr-2"></i>Detalle de Salida</h3>
                         <span id="contador-filas" style="background:rgba(255,255,255,.2); color:#fff; border-radius:20px; padding:2px 12px; font-size:12px; font-weight:700">
-                        0 ítems
-                    </span>
+                            0 ítems
+                        </span>
                     </div>
 
                     <div class="card-body p-0">
@@ -242,13 +220,6 @@
                     </div>
 
                     <div class="d-flex justify-content-center gap-2 mt-3" style="margin: 10px; padding-bottom: 15px">
-                        <button type="button"
-                                class="btn btn-warning"
-                                style="border-radius:6px; padding:6px 14px; font-weight:400; font-size:12px; color:#333;"
-                                onclick="generarPdfTalonario()">
-                            <i class="fas fa-file-pdf mr-1"></i>Generar PDF
-                        </button>
-
                         <button type="button"
                                 class="btn-guardar-salida"
                                 style="border-radius:6px; padding:6px 14px; font-size:12px; margin-left: 15px"
@@ -328,7 +299,6 @@
 
                                         <input type="hidden" id="id-material-seleccionado">
 
-                                        {{-- Fila: Material + U/M --}}
                                         <div class="form-row mb-3">
                                             <div class="col-md-9">
                                                 <label class="field-label">Material</label>
@@ -422,6 +392,15 @@
 
     <script>
 
+        // ── Helper: leer campos del encabezado ───────────────────────────
+        function getCamposEncabezado() {
+            return {
+                fecha:       document.getElementById('fecha').value,
+                proyecto:    document.getElementById('select-proyecto').value,
+                descripcion: document.getElementById('descripcion').value,
+            };
+        }
+
         // ── Abrir modal buscador ──────────────────────────────────────────
         function abrirModal() {
             document.getElementById('tablaRepuesto').innerHTML = "";
@@ -482,41 +461,38 @@
                         $('#info-material').val(response.data.nombreMaterial);
                         $('#info-medida').val(response.data.nombreMedida);
 
+                        // 👇 Entradas (lotes) que ya están agregadas en la tabla de detalle
+                        var idsYaAgregados = $("input[name='idmaterialArray[]']").map(function () {
+                            return String($(this).attr("data-idmaterialArray"));
+                        }).get();
+
                         $.each(response.data.arrayIngreso, function (key, val) {
+                            var yaAgregado = idsYaAgregados.includes(String(val.id));
 
-                            // ✅ Verificar si este lote (id_entrada_detalle) ya está en la tabla principal
-                            var loteYaAgregado = false;
-                            $("input[name='idmaterialArray[]']").each(function () {
-                                if ($(this).attr("data-idmaterialArray") == val.id) {
-                                    loteYaAgregado = true;
-                                    return false; // break
-                                }
-                            });
-
-                            // Badge que indica si el lote ya fue agregado
-                            var badgeLote = loteYaAgregado
-                                ? '<span class="badge badge-warning ml-1" title="Este lote ya fue agregado al detalle">Ya agregado</span>'
-                                : '';
-
-                            var markup = "<tr" + (loteYaAgregado ? " style='background:#fff3cd'" : "") + ">" +
-                                "<td><input disabled value='" + val.fechaIngreso + "' class='form-control form-control-sm' type='text'>" + badgeLote + "</td>" +
-                                "<td><input disabled value='" + (val.codigo ?? '') + "' class='form-control form-control-sm' type='text'></td>" +
-                                "<td><input disabled value='" + val.precioFormat + "' class='form-control form-control-sm' type='text'></td>" +
-                                "<td>" +
-                                "<input name='arrayCantidadActual[]' disabled " +
+                            var inputCantidadActual = yaAgregado
+                                ? "<input disabled data-cantidadActualFila='" + val.cantidadActual + "' " +
+                                "value='" + val.cantidadActual + "' class='form-control form-control-sm' type='number'>"
+                                : "<input name='arrayCantidadActual[]' disabled " +
                                 "data-cantidadActualFila='" + val.cantidadActual + "' " +
-                                "value='" + val.cantidadActual + "' class='form-control form-control-sm' type='number'>" +
-                                "</td>" +
-                                "<td>" +
-                                "<input class='form-control form-control-sm' " +
+                                "value='" + val.cantidadActual + "' class='form-control form-control-sm' type='number'>";
+
+                            var inputCantidadSalida = yaAgregado
+                                ? "<input class='form-control form-control-sm' disabled " +
                                 "data-idfilaentradadetalle='" + val.id + "' " +
-                                "data-lote-ya-agregado='" + (loteYaAgregado ? '1' : '0') + "' " +
+                                "value='Ya agregado' title='Este lote ya está en el detalle. Elimínelo de la tabla para modificarlo.' " +
+                                "style='background:#f0f0f0; color:#888; font-style:italic'>"
+                                : "<input class='form-control form-control-sm' " +
+                                "data-idfilaentradadetalle='" + val.id + "' " +
                                 "name='arrayCantidadSalida[]' min='0' max='" + val.cantidadActual + "' type='number' " +
                                 "onkeydown=\"return validateInput(event);\" " +
-                                "oninput=\"validateCantidadSalida(this, " + val.cantidadActual + ");\"" +
-                                (loteYaAgregado ? " disabled title='Lote ya agregado al detalle'" : "") +
-                                ">" +
-                                "</td>" +
+                                "oninput=\"validateCantidadSalida(this, " + val.cantidadActual + ");\">";
+
+                            var markup = "<tr" + (yaAgregado ? " style='background:#fafafa'" : "") + ">" +
+                                "<td><input disabled value='" + val.fechaIngreso + "' class='form-control form-control-sm' type='text'></td>" +
+                                "<td><input disabled value='" + (val.codigo ?? '') + "' class='form-control form-control-sm' type='text'></td>" +
+                                "<td><input disabled value='" + val.precioFormat + "' class='form-control form-control-sm' type='text'></td>" +
+                                "<td>" + inputCantidadActual + "</td>" +
+                                "<td>" + inputCantidadSalida + "</td>" +
                                 "</tr>";
 
                             $("#matrizM tbody").append(markup);
@@ -535,7 +511,6 @@
             var arrayIdEntradaDetalle = $("input[name='arrayCantidadSalida[]']").map(function () { return $(this).attr("data-idfilaentradadetalle"); }).get();
             var arrayCantidadSalida   = $("input[name='arrayCantidadSalida[]']").map(function () { return $(this).val(); }).get();
             var arrayCantidadActual   = $("input[name='arrayCantidadActual[]']").map(function () { return $(this).attr("data-cantidadActualFila"); }).get();
-            var arrayLoteYaAgregado   = $("input[name='arrayCantidadSalida[]']").map(function () { return $(this).attr("data-lote-ya-agregado"); }).get();
 
             colorBlancoTabla();
             var habraSalida = true;
@@ -543,10 +518,6 @@
             for (var a = 0; a < arrayCantidadSalida.length; a++) {
                 var filaCantidad           = arrayCantidadSalida[a];
                 var infoFilaCantidadActual = arrayCantidadActual[a];
-                var loteYaAgregado         = arrayLoteYaAgregado[a] === '1';
-
-                // ✅ Ignorar filas de lotes ya agregados (están disabled, vienen vacías)
-                if (loteYaAgregado) continue;
 
                 if (filaCantidad !== '') {
                     if (filaCantidad <= 0) {
@@ -569,12 +540,7 @@
             var nFilas      = $('#matriz >tbody >tr').length;
 
             for (var z = 0; z < arrayCantidadSalida.length; z++) {
-                var fc             = arrayCantidadSalida[z];
-                var loteSkip       = arrayLoteYaAgregado[z] === '1';
-
-                // ✅ No agregar lotes ya presentes ni vacíos
-                if (loteSkip) continue;
-
+                var fc = arrayCantidadSalida[z];
                 if (fc !== '' && fc != 0) {
                     nFilas++;
 
@@ -604,7 +570,7 @@
             colorBlancoTabla();
             Swal.fire({
                 title: '¿Guardar Salida?',
-                icon: 'question',
+                type: 'question',
                 showCancelButton: true,
                 confirmButtonColor: '#28a745',
                 cancelButtonColor: '#d33',
@@ -615,14 +581,10 @@
 
         // ── Guardar salida ────────────────────────────────────────────────
         function guardarSalida() {
-            var fecha       = document.getElementById('fecha').value;
-            var proyecto    = document.getElementById('select-proyecto').value;
-            var descripcion = document.getElementById('descripcion').value;
-            var nTalonario  = document.getElementById('n_talonario').value;
-            var nombre      = document.getElementById('nombre_recibe').value;
+            var c = getCamposEncabezado();
 
-            if (!fecha)                        { toastr.error('Fecha es requerida');     return; }
-            if (!proyecto || proyecto === '0') { toastr.error('Seleccione un Proyecto'); return; }
+            if (!c.fecha)                          { toastr.error('Fecha es requerida');     return; }
+            if (!c.proyecto || c.proyecto === '0') { toastr.error('Seleccione un Proyecto'); return; }
 
             if ($('#matriz > tbody > tr').length <= 0) {
                 toastr.error('Debe agregar al menos un ítem de salida');
@@ -635,10 +597,10 @@
 
             for (var a = 0; a < idEntradaDetalle.length; a++) {
                 var ic = salidaCantidad[a];
-                if (!ic)                       { colorRojoTabla(a); toastr.error('Fila #' + (a+1) + ' — Cantidad requerida');           return; }
-                if (!ic.match(reglaEntero))    { colorRojoTabla(a); toastr.error('Fila #' + (a+1) + ' — Debe ser entero positivo');     return; }
-                if (ic <= 0)                   { colorRojoTabla(a); toastr.error('Fila #' + (a+1) + ' — No puede ser cero o negativo'); return; }
-                if (ic > 1000000)              { colorRojoTabla(a); toastr.error('Fila #' + (a+1) + ' — Máximo 1,000,000');             return; }
+                if (!ic)                    { colorRojoTabla(a); toastr.error('Fila #' + (a+1) + ' — Cantidad requerida');           return; }
+                if (!ic.match(reglaEntero)) { colorRojoTabla(a); toastr.error('Fila #' + (a+1) + ' — Debe ser entero positivo');     return; }
+                if (ic <= 0)                { colorRojoTabla(a); toastr.error('Fila #' + (a+1) + ' — No puede ser cero o negativo'); return; }
+                if (ic > 1000000)           { colorRojoTabla(a); toastr.error('Fila #' + (a+1) + ' — Máximo 1,000,000');             return; }
             }
 
             var contenedorArray = [];
@@ -651,12 +613,10 @@
 
             openLoading();
             var formData = new FormData();
-            formData.append('fecha',           fecha);
-            formData.append('proyecto',        proyecto);
-            formData.append('descripcion',     descripcion);
+            formData.append('fecha',           c.fecha);
+            formData.append('proyecto',        c.proyecto);
+            formData.append('descripcion',     c.descripcion);
             formData.append('contenedorArray', JSON.stringify(contenedorArray));
-            formData.append('fichaNombre',     nombre);
-            formData.append('fichaTalonario',  nTalonario);
 
             axios.post(urlAdmin + '/admin/salida/guardar', formData)
                 .then((response) => {
@@ -669,12 +629,12 @@
                                 '<b>' + response.data.nombre_material + '</b><br><br>' +
                                 'Solicitado: <b>' + response.data.cantidad_pedida + '</b><br>' +
                                 'Disponible: <b>' + response.data.disponible + '</b>',
-                            icon: 'warning',
+                            type: 'warning',
                             confirmButtonColor: '#d33',
                             confirmButtonText: 'Entendido'
                         });
                     }
-                    else if (response.data.success === 3) { toastr.error("El proyecto está Cerrado"); }
+                    else if (response.data.success === 3) { toastr.error("El proyecto esta Cerrado"); }
                     else if (response.data.success === 4) {
                         Swal.fire({
                             title: 'Fecha inválida',
@@ -683,7 +643,7 @@
                                 'tiene fecha de ingreso <b>' + response.data.fecha_ingreso + '</b>.<br><br>' +
                                 'La fecha de salida (<b>' + response.data.fecha_salida + '</b>) ' +
                                 'no puede ser anterior al ingreso.',
-                            icon: 'warning',
+                            type: 'warning',
                             confirmButtonColor: '#d33',
                             confirmButtonText: 'Entendido'
                         });
@@ -698,11 +658,72 @@
         function msgActualizado() {
             Swal.fire({
                 title: 'Salida Registrada',
-                icon: 'success',
+                type: 'success',
                 allowOutsideClick: false,
                 confirmButtonColor: '#28a745',
                 confirmButtonText: 'Aceptar'
             }).then((result) => { if (result.isConfirmed) location.reload(); });
+        }
+
+        // ── Generar PDF talonario ─────────────────────────────────────────
+        function generarPdfTalonario() {
+            colorBlancoTabla();
+
+            var c = getCamposEncabezado();
+
+            if (!c.fecha)                          { toastr.error('Fecha es requerida');     return; }
+            if (!c.proyecto || c.proyecto === '0') { toastr.error('Seleccione un Proyecto'); return; }
+
+            if ($('#matriz > tbody > tr').length <= 0) {
+                toastr.error('Debe agregar al menos un ítem para generar el PDF');
+                return;
+            }
+
+            var idEntradaDetalle = $("input[name='idmaterialArray[]']").map(function () {
+                return $(this).attr("data-idmaterialArray");
+            }).get();
+
+            var salidaCantidad = $("input[name='salidaArray[]']").map(function () {
+                return $(this).attr("data-cantidadSalida");
+            }).get();
+
+            var nombreMaterial = $("input[name='idmaterialArray[]']").map(function () {
+                return $(this).closest('tr').find('input[disabled]').eq(0).val();
+            }).get();
+
+            var contenedorArray = [];
+            for (var p = 0; p < salidaCantidad.length; p++) {
+                contenedorArray.push({
+                    infoIdEntradaDeta: idEntradaDetalle[p],
+                    infoCantidad:      salidaCantidad[p],
+                    nombreMaterial:    nombreMaterial[p],
+                });
+            }
+
+            var form = document.createElement('form');
+            form.method = 'POST';
+            form.action = urlAdmin + '/admin/reporte/talonario/salida';
+            form.target = '_blank';
+
+            var fields = {
+                '_token':          document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'fecha':           c.fecha,
+                'proyecto':        c.proyecto,
+                'descripcion':     c.descripcion,
+                'contenedorArray': JSON.stringify(contenedorArray),
+            };
+
+            Object.keys(fields).forEach(function(key) {
+                var input = document.createElement('input');
+                input.type  = 'hidden';
+                input.name  = key;
+                input.value = fields[key];
+                form.appendChild(input);
+            });
+
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
         }
 
         // ── Utilidades tabla ──────────────────────────────────────────────
@@ -743,72 +764,6 @@
         function validateCantidadMaxReemplazo(input, maxCantidad) {
             input.value = input.value.replace(/[^0-9]/g, '');
             if (Number(input.value) > maxCantidad) input.value = maxCantidad;
-        }
-
-        function generarPdfTalonario() {
-            colorBlancoTabla();
-
-            var fecha       = document.getElementById('fecha').value;
-            var proyecto    = document.getElementById('select-proyecto').value;
-            var descripcion = document.getElementById('descripcion').value;
-            var nTalonario  = document.getElementById('n_talonario').value;
-            var nombre      = document.getElementById('nombre_recibe').value;
-
-            if (!fecha)                        { toastr.error('Fecha es requerida');     return; }
-            if (!proyecto || proyecto === '0') { toastr.error('Seleccione un Proyecto'); return; }
-
-            if ($('#matriz > tbody > tr').length <= 0) {
-                toastr.error('Debe agregar al menos un ítem para generar el PDF');
-                return;
-            }
-
-            var idEntradaDetalle = $("input[name='idmaterialArray[]']").map(function () {
-                return $(this).attr("data-idmaterialArray");
-            }).get();
-
-            var salidaCantidad = $("input[name='salidaArray[]']").map(function () {
-                return $(this).attr("data-cantidadSalida");
-            }).get();
-
-            var nombreMaterial = $("input[name='idmaterialArray[]']").map(function () {
-                return $(this).closest('tr').find('input[disabled]').eq(0).val();
-            }).get();
-
-            var contenedorArray = [];
-            for (var p = 0; p < salidaCantidad.length; p++) {
-                contenedorArray.push({
-                    infoIdEntradaDeta: idEntradaDetalle[p],
-                    infoCantidad:      salidaCantidad[p],
-                    nombreMaterial:    nombreMaterial[p],
-                });
-            }
-
-            var form = document.createElement('form');
-            form.method = 'POST';
-            form.action = urlAdmin + '/admin/reporte/talonario/salida';
-            form.target = '_blank';
-
-            var fields = {
-                '_token':          document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                'fecha':           fecha,
-                'proyecto':        proyecto,
-                'descripcion':     descripcion,
-                'n_talonario':     nTalonario,
-                'nombre_recibe':   nombre,
-                'contenedorArray': JSON.stringify(contenedorArray),
-            };
-
-            Object.keys(fields).forEach(function(key) {
-                var input = document.createElement('input');
-                input.type  = 'hidden';
-                input.name  = key;
-                input.value = fields[key];
-                form.appendChild(input);
-            });
-
-            document.body.appendChild(form);
-            form.submit();
-            document.body.removeChild(form);
         }
 
     </script>

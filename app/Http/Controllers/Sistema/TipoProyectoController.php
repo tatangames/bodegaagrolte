@@ -4,9 +4,6 @@ namespace App\Http\Controllers\Sistema;
 
 use App\Http\Controllers\Controller;
 use App\Models\Entradas;
-use App\Models\HistorialEntradas;
-use App\Models\HistorialSalidas;
-use App\Models\HistorialTransferido;
 use App\Models\TipoProyecto;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;

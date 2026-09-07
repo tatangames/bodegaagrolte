@@ -14,6 +14,8 @@ use App\Http\Controllers\Sistema\SalidasController;
 use App\Http\Controllers\Sistema\HistorialController;
 use App\Http\Controllers\Sistema\ReportesController;
 use App\Http\Controllers\Sistema\ReservasController;
+use App\Http\Controllers\Sistema\HistorialTransferenciaController;
+
 
 
 Route::get('/', [LoginController::class,'vistaLoginForm'])->name('login.admin');
@@ -114,9 +116,11 @@ Route::middleware('auth:admin')->group(function () {
     Route::post('/admin/buscar/material/disponible',  [SalidasController::class,'buscadorMaterialDisponible']);
     Route::post('/admin/buscar/material/disponibilidad', [SalidasController::class, 'infoBodegaMaterialDetalleFila']);
 
+
     // --- CIERRE DE PROYECTOS ---
     Route::get('/admin/cierre/proyectos', [SalidasController::class,'indexTransferencias'])->name('admin.transferencias.index');
     Route::post('/admin/generar/salida/transferencia',  [SalidasController::class,'generarSalidaTransferencia']);
+    Route::post('/admin/proyectos/reabrir',            [SalidasController::class, 'reabrirProyecto']);
 
     // --- HISTORIAL / ENTRADAS ---
     Route::get('/admin/historial/entradas', [HistorialController::class,'indexHistorialEntradas'])->name('admin.historial.entradas.index');
@@ -143,42 +147,50 @@ Route::middleware('auth:admin')->group(function () {
     // --- TRANSFERENCIA DE MATERIALES DE PROYECTOS CERRADOS ---
     Route::get('/admin/transferencia/material/proyectoscerrados', [SalidasController::class,'indexTransferenciasDeProyectosCerrados'])->name('admin.transferencias.materiales.index');
     Route::post('/admin/transferencia/material/xproyecto', [SalidasController::class,'retirarMaterialDeProyectosCerrados']);
-    // Cargar materiales de proyecto cerrado
+    // Ruta nueva para cargar materiales del proyecto cerrado
     Route::post('/admin/transferencia/materiales/cerrado', [SalidasController::class, 'materialesDisponiblesCerrado']);
-    // Crear la Reserva del material
+    // Agregar esta ruta junto a las demás de reservas
     Route::post('/admin/reservas/crear', [ReservasController::class, 'crearReserva']);
+
 
     // --- RESERVAS ---
     Route::get('/admin/reservas/index', [ReservasController::class,'indexReservasPendientes'])->name('admin.reservas.index');
     Route::post('/admin/reservas/listar', [ReservasController::class, 'listar']);
     Route::post('/admin/reservas/despachar', [ReservasController::class, 'despachar']);
 
+
     // --- HISTORIAL / TRANSFERENCIAS ---
-    Route::get('/admin/historial/transferencias', [HistorialController::class, 'indexHistorialTransferencias'])->name('admin.historial.transferencias.index');
-    Route::get('/admin/historial/transferencias/tabla', [HistorialController::class, 'tablaHistorialTransferencias']);
-    Route::post('/admin/historial/transferencias/informacion', [HistorialController::class, 'informacionTransferencia']);
-    Route::post('/admin/historial/transferencias/eliminar', [HistorialController::class, 'eliminarTransferencia']);
-    Route::post('/admin/historial/transferencias/detalle', [HistorialController::class, 'detalleTransferencia']);
-    Route::get('/admin/historial/transferencias/acta/pdf/{id}', [HistorialController::class, 'actaDesdeHistorial']);
+    Route::get('/admin/historial/transferencias', [HistorialTransferenciaController::class, 'indexHistorialTransferencias'])->name('admin.historial.transferencias.index');
+    Route::get('/admin/historial/transferencias/tabla', [HistorialTransferenciaController::class, 'tablaHistorialTransferencias']);
+    Route::post('/admin/historial/transferencias/informacion', [HistorialTransferenciaController::class, 'informacionTransferencia']);
+    Route::post('/admin/historial/transferencias/eliminar', [HistorialTransferenciaController::class, 'eliminarTransferencia']);
+    Route::post('/admin/historial/transferencias/detalle', [HistorialTransferenciaController::class, 'detalleTransferencia']);
+    Route::get('/admin/historial/transferencias/acta/pdf/{id}', [HistorialTransferenciaController::class, 'actaDesdeHistorial']);
 
 
-    // --- REPORTES DE DIFERENTES FORMULARIOS ---
+
+
+    // --- PDF - GENERADO TRANSFERENCIA A PROYECTO PRE AUTORIZACION ---
     Route::post('/admin/reporte/form/solicitud/preview',
         [ReportesController::class, 'formSolicitudPreview'])
         ->name('reporte.form.solicitud.preview');
 
+    // --- PDF - GENERADO EN SALIDA GENERAL
     Route::post('/admin/reporte/form003/solicitud/preview',
         [ReportesController::class, 'form003SolicitudPreview'])
         ->name('reporte.form003.solicitud.preview');
 
+    // --- PDF - GENERADO TRANSFERENCIA A PROYECTO YA AUTORIZADO ---
     Route::post('/admin/reporte/acta/preview',
         [ReportesController::class, 'actaRecepcionPreview'])
         ->name('reporte.acta.preview');
 
+    // --- PDF - GENERADO MATERIALES RESERVADOS ---
     Route::post('/admin/reporte/acta/preview/reserva',
         [ReportesController::class, 'actaRecepcionPreviewReserva'])
         ->name('reporte.acta.preview');
 
+    // --- PDF - GENERADO AL RESERVAR MATERIALES - Formulario de Reserva — GEAD-001-FORM ---
     Route::post('/admin/reporte/form001/reserva/preview',
         [ReportesController::class, 'form001ReservaPreview'])
         ->name('reporte.form001.reserva.preview');
@@ -193,7 +205,28 @@ Route::middleware('auth:admin')->group(function () {
 
     // --- REPORTE / INVENTARIO PROYECTO
     Route::get('/admin/reporte/inventario/quetengopor/proyecto', [ReportesController::class,'vistaQueTengoPorProyecto'])->name('admin.reporte.inventario.tengoporproyecto.index');
+
     Route::get('/admin/reporte/quetengopor/proyectos/pdf/{idproy}', [ReportesController::class,'reporteQueTengoPorProyecto']);
+    Route::get('/admin/reporte/quetengopor/proyectos/totalizado/pdf', [ReportesController::class, 'reporteTotalizadoTodosProyectos']);
+    Route::get('/admin/reporte/quetengopor/proyectos/totalizado-precio/pdf', [ReportesController::class, 'reporteTotalizadoTodosProyectosPrecio']);
+    Route::get('/admin/reporte/consolidado/materiales/pdf', [ReportesController::class, 'reporteConsolidadoMateriales']);
+
+
+    Route::get('/admin/reporte/cerrados/totalizado/pdf',
+        [ReportesController::class, 'reporteTotalizadoCerrados']);
+
+    Route::get('/admin/reporte/cerrados/totalizado-desglosado/pdf',
+        [ReportesController::class, 'reporteTotalizadoCerradosDesglosadoPrecio']);
+
+    Route::get('/admin/reporte/cerrados/consolidado/materiales/pdf',
+        [ReportesController::class, 'reporteConsolidadoMaterialesCerrados']);
+
+    Route::get('/admin/reporte/cerrado/conteo/pdf/{id}',
+        [ReportesController::class, 'reporteConteoFisicoCerrado']);
+
+    Route::get('/admin/reporte/cerrado/lote/pdf/{id}',
+        [ReportesController::class, 'reporteLoteCerrado']);
+
     Route::post('/admin/firmas/proyectos/completado/actualizar', [ReportesController::class, 'actualizarFirmasSobrantes']);
     Route::post('/admin/firmas/proyectos/traspaso/actualizar', [ReportesController::class, 'actualizarFirmasTraspaso']);
 
@@ -222,12 +255,19 @@ Route::middleware('auth:admin')->group(function () {
     Route::post('/admin/reporte/proyectos/periodos/pdf', [ReportesController::class, 'vistaPDFReportePorPeriodos']);
     Route::post('/admin/firmas/proyectos/periodos/actualizar', [ReportesController::class, 'actualizarFirmasReportePeriodos']);
 
-    // --- ACTUALIZAR CONFIGURACION DE PX PARA REPORTES ---
+    // --- ACTUALIZAR FIRMAS LAS DISTANCIAS DE LOS REPORTES ---
     Route::post('/admin/informacion/actualizar/px', [ReportesController::class, 'actualizarPxInformacionGeneral'])
         ->name('admin.informacion.actualizar.px');
 
     // --- REPORTE SALIDA TALONARIO ---
     Route::post('/admin/reporte/talonario/salida', [ReportesController::class, 'pdfReporteSalidaTalonario']);
+
+
+
+
+
+
+
 
 
 

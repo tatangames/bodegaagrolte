@@ -37,8 +37,6 @@ class SalidasController extends Controller
     public function buscadorMaterialDisponible(Request $request)
     {
 
-        Log::info($request->all());
-
         if ($request->get('query')) {
 
             $query      = $request->get('query');
@@ -169,15 +167,6 @@ class SalidasController extends Controller
 
 
 
-
-
-
-
-
-
-
-
-
     public function guardarSalida(Request $request)
     {
         $rules = [
@@ -199,39 +188,33 @@ class SalidasController extends Controller
         // ── Validar que el proyecto no esté cerrado ──
         $proyecto = Tipoproyecto::find($request->proyecto);
         if (!$proyecto || $proyecto->transferido == 1) {
-            return ['success' => 3];
+            return ['success' => 3]; // proyecto cerrado
         }
 
-        // ── Agrupar por id_entrada_detalle y sumar cantidades del mismo lote ──
-        // También conservamos la primera fila asociada a cada lote para el mensaje de error
-        $agrupado    = [];
-        $filasPorLote = [];
-
-        foreach ($contenedor as $index => $item) {
+        // ✅ Agrupar por id_entrada_detalle y sumar cantidades del mismo lote
+        $agrupado = [];
+        foreach ($contenedor as $item) {
             $id = $item['infoIdEntradaDeta'];
-
             if (!isset($agrupado[$id])) {
-                $agrupado[$id]     = 0;
-                $filasPorLote[$id] = $index + 1; // fila real (base 1) del contenedor
+                $agrupado[$id] = 0;
             }
-
             $agrupado[$id] += (int) $item['infoCantidad'];
         }
 
         DB::beginTransaction();
 
         try {
-            // ── Validar disponibilidad y fechas ──
+            $fila = 1;
+            // ── Validar disponibilidad ──
             foreach ($agrupado as $idEntradaDetalle => $cantidadSalida) {
 
-                // ── Disponibilidad ──
                 $disponible = DB::table('entradas_detalle as ed')
                     ->leftJoin(
                         DB::raw('(
-                        SELECT id_entrada_detalle, SUM(cantidad_salida) as total_salido
-                        FROM salidas_detalle
-                        GROUP BY id_entrada_detalle
-                    ) as sd'),
+                SELECT id_entrada_detalle, SUM(cantidad_salida) as total_salido
+                FROM salidas_detalle
+                GROUP BY id_entrada_detalle
+            ) as sd'),
                         'sd.id_entrada_detalle', '=', 'ed.id'
                     )
                     ->where('ed.id', $idEntradaDetalle)
@@ -248,14 +231,14 @@ class SalidasController extends Controller
 
                     return [
                         'success'         => 2,
-                        'fila'            => $filasPorLote[$idEntradaDetalle], // ✅ fila real
+                        'fila'            => $fila,
                         'nombre_material' => $nombreMaterial ?? 'Material desconocido',
                         'cantidad_pedida' => $cantidadSalida,
-                        'disponible'      => (int) ($disponible ?? 0),
+                        'disponible'      => (int) $disponible,
                     ];
                 }
 
-                // ── Validar que fecha de salida no sea anterior a fecha de ingreso ──
+                // ── 🆕 Validar que la fecha de salida no sea anterior a la fecha de ingreso ──
                 $fechaIngreso = DB::table('entradas_detalle as ed')
                     ->join('entradas as e', 'e.id', '=', 'ed.id_entradas')
                     ->where('ed.id', $idEntradaDetalle)
@@ -270,29 +253,34 @@ class SalidasController extends Controller
                         ->value('m.nombre');
 
                     return [
-                        'success'         => 4,
-                        'nombre_material' => $nombreMaterial ?? 'Material desconocido',
-                        'fecha_salida'    => Carbon::parse($request->fecha)->format('d-m-Y'),
-                        'fecha_ingreso'   => Carbon::parse($fechaIngreso)->format('d-m-Y'),
+                        'success'          => 4,
+                        'nombre_material'  => $nombreMaterial ?? 'Material desconocido',
+                        'fecha_salida'     => Carbon::parse($request->fecha)->format('d-m-Y'),
+                        'fecha_ingreso'    => Carbon::parse($fechaIngreso)->format('d-m-Y'),
                     ];
                 }
+                // ─────────────────────────────────────────────────────────────────────────
+
+                $fila++;
             }
 
-            // ── Guardar cabecera ──
-            $salida                              = new Salidas();
-            $salida->fecha                       = Carbon::parse($request->fecha);
-            $salida->descripcion                 = $request->descripcion;
-            $salida->id_tipoproyecto             = $request->proyecto;
-            $salida->es_transferencia            = 0;
+            // Guardar cabecera
+            $salida                  = new Salidas();
+            $salida->fecha           = Carbon::parse($request->fecha);
+            $salida->descripcion     = $request->descripcion;
+            $salida->id_tipoproyecto = $request->proyecto;
+            $salida->es_transferencia= 0;
             $salida->id_tipoproyecto_transferencia = null;
+            $salida->ficha_nombre = $request->fichaNombre;
+            $salida->ficha_talonario = $request->fichaTalonario;
             $salida->save();
 
-            // ── Guardar detalle con cantidades ya agrupadas ──
+            // ✅ Guardar detalle con cantidades agrupadas
             foreach ($agrupado as $idEntradaDetalle => $cantidadSalida) {
-                $detalle                     = new SalidasDetalle();
-                $detalle->id_salida          = $salida->id;
-                $detalle->id_entrada_detalle = $idEntradaDetalle;
-                $detalle->cantidad_salida    = $cantidadSalida;
+                $detalle                      = new SalidasDetalle();
+                $detalle->id_salida           = $salida->id;
+                $detalle->id_entrada_detalle  = $idEntradaDetalle;
+                $detalle->cantidad_salida     = $cantidadSalida;
                 $detalle->save();
             }
 
@@ -315,17 +303,26 @@ class SalidasController extends Controller
 
     // *****************************
 
-    public function indexTransferencias(){
-
-        // LISTADO DE PROYECTOS (MENOS EL ID 1 YA QUE SERA EL INVENTARIO GENERAL)
-        // Y QUE NO HAYAN SIDO TRANSFERIDOS
-
+    public function indexTransferencias()
+    {
+        // Proyectos activos (para cerrar)
         $tipoproyecto = TipoProyecto::orderBy('nombre')
-            ->where('id', '!=', 1)
             ->where('transferido', '!=', 1)
             ->get();
 
-        return view('backend.admin.repuestos.registros.vistatransferidos', compact('tipoproyecto'));
+        // Proyectos cerrados (para reabrir) — indica si tiene retiros
+        $proyectosCerrados = TipoProyecto::where('transferido', 1)
+            ->orderBy('nombre')
+            ->get()
+            ->map(function ($p) {
+                $p->puede_reabrir = !Transferencia::where('id_tipoproyecto_origen', $p->id)
+                    ->whereIn('tipo_salida', ['proyecto', 'general'])
+                    ->exists();
+                return $p;
+            });
+
+        return view('backend.admin.repuestos.registros.vistatransferidos',
+            compact('tipoproyecto', 'proyectosCerrados'));
     }
 
 
@@ -426,6 +423,56 @@ class SalidasController extends Controller
             Log::error('geenrarSalidaTransferencia: ' . $e);
             DB::rollback();
             return ['success' => 99];
+        }
+    }
+
+
+
+    public function reabrirProyecto(Request $request)
+    {
+        $proyecto = TipoProyecto::find($request->id);
+
+        if (!$proyecto || $proyecto->transferido == 0) {
+            return response()->json(['success' => 0]); // no existe o ya está abierto
+        }
+
+        // Verificar que no tenga retiros
+        $tieneRetiros = Transferencia::where('id_tipoproyecto_origen', $proyecto->id)
+            ->whereIn('tipo_salida', ['proyecto', 'general'])
+            ->exists();
+
+        if ($tieneRetiros) {
+            return response()->json([
+                'success' => 2,
+                'msg'     => 'No se puede reabrir: ya se han retirado materiales de este proyecto.',
+            ]);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            // Borrar el snapshot (TransferenciaDetalle + Transferencia tipo snapshot)
+            $snapshot = Transferencia::where('id_tipoproyecto_origen', $proyecto->id)
+                ->where('tipo_salida', 'snapshot')
+                ->first();
+
+            if ($snapshot) {
+                $snapshot->detalle()->delete();
+                $snapshot->delete();
+            }
+
+            // Reabrir el proyecto
+            $proyecto->transferido  = 0;
+            $proyecto->fecha_cierre = null;
+            $proyecto->save();
+
+            DB::commit();
+            return response()->json(['success' => 1]);
+
+        } catch (\Throwable $e) {
+            DB::rollback();
+            Log::error('reabrirProyecto: ' . $e->getMessage());
+            return response()->json(['success' => 99]);
         }
     }
 
@@ -757,16 +804,6 @@ class SalidasController extends Controller
 
         return ['success' => 1, 'materiales' => $materiales];
     }
-
-
-
-
-
-
-
-
-
-
 
 
 }
