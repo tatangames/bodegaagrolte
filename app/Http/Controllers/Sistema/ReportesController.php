@@ -2378,16 +2378,6 @@ class ReportesController extends Controller
     }
 
 
-
-
-    public function vistaReporteProyectoCodigos()
-    {
-        $proyectos = TipoProyecto::orderBy('nombre', 'ASC')->get();
-
-        return view('backend.admin.repuestos.reporte.vistareporteporcodigos', compact('proyectos'));
-    }
-
-
     public function reportePDFProyectoCodigos($idproy, $desde, $hasta, $descripcion = '')
     {
         $start = Carbon::parse($desde)->startOfDay();
