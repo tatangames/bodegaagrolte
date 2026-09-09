@@ -40,17 +40,6 @@
     </li>
 @endsection
 
-@section('css')
-    <style>
-        #placeholder-historial {
-            padding: 60px 0;
-        }
-        #placeholder-historial i {
-            color: #adb5bd;
-        }
-    </style>
-@stop
-
 @section('content')
     <div id="divcontenedor">
 
@@ -104,8 +93,7 @@
                                 <input type="text"
                                        class="form-control"
                                        id="filtro-material"
-                                       placeholder="Ej: cemento, MAT-001 ..."
-                                       onkeydown="if(event.key === 'Enter'){ event.preventDefault(); recargar(); }">
+                                       placeholder="Ej: cemento, MAT-001 ...">
                             </div>
                             <div class="col-md-6 d-flex align-items-end">
                                 <small class="text-muted">
@@ -130,15 +118,12 @@
                         <div class="row">
                             <div class="col-md-12">
                                 <div id="tablaDatatable">
-                                    {{-- Nada se carga hasta que el usuario aplique un filtro --}}
-                                    <div class="text-center text-muted" id="placeholder-historial">
-                                        <i class="fas fa-filter fa-2x mb-3"></i>
-                                        <p class="mb-0">
-                                            Selecciona un proyecto, un rango de fechas o un material,
-                                        </p>
-                                        <p>
-                                            y presiona <strong>Filtrar</strong> para ver el historial de salidas.
-                                        </p>
+                                    {{-- Loading inicial --}}
+                                    <div id="loading-historial" class="text-center py-5">
+                                        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                                            <span class="sr-only">Cargando...</span>
+                                        </div>
+                                        <p class="mt-3 text-muted">Cargando historial de salidas...</p>
                                     </div>
                                 </div>
                             </div>
@@ -215,10 +200,8 @@
                                 <th>#</th>
                                 <th>Código</th>
                                 <th>Material</th>
-                                <th class="text-center">U. Medida</th>
                                 <th class="text-center">Cantidad</th>
                                 <th class="text-right">Precio unitario</th>
-                                <th class="text-right">Total</th>
                             </tr>
                             </thead>
                             <tbody id="detalle-tbody"></tbody>
@@ -255,7 +238,7 @@
                 language: { noResults: function () { return 'No encontrado'; } },
                 templateResult: function (data) {
                     if (!data.id) return data.text;
-                    var cerrado = $(data.element).data('cerrado') == '1';
+                    var cerrado = $(data.element).data('cerrado') == '1';  // 👈
                     return $('<span class="d-flex align-items-center justify-content-between">')
                         .append($('<span>').text(data.text))
                         .append($('<span>')
@@ -265,7 +248,7 @@
                 },
                 templateSelection: function (data) {
                     if (!data.id) return data.text;
-                    var cerrado = $(data.element).data('cerrado') == '1';
+                    var cerrado = $(data.element).data('cerrado') == '1';  // 👈
                     return $('<span>')
                         .append($('<span>').text(data.text))
                         .append($('<span>')
@@ -313,30 +296,7 @@
                 $('#tabla_filter input').addClass('form-control form-control-sm').css('display', 'inline-block');
             }
 
-            // ── Placeholder cuando no hay filtros aplicados ───────
-            function mostrarPlaceholder() {
-                $('#tablaDatatable').html(
-                    '<div class="text-center text-muted" id="placeholder-historial">' +
-                    '<i class="fas fa-filter fa-2x mb-3"></i>' +
-                    '<p class="mb-0">Selecciona un proyecto, un rango de fechas o un material,</p>' +
-                    '<p>y presiona <strong>Filtrar</strong> para ver el historial de salidas.</p>' +
-                    '</div>'
-                );
-            }
-
-            function mostrarLoading() {
-                $('#tablaDatatable').html(
-                    '<div class="text-center py-5">' +
-                    '<i class="fas fa-spinner fa-spin fa-2x"></i>' +
-                    '<p class="mt-2 mb-0 text-muted">Cargando salidas...</p>' +
-                    '</div>'
-                );
-            }
-
-            // ── Cargar tabla (con o sin filtros) ──────────────────
-            // Se invoca solo cuando el usuario presiona "Filtrar" (o Enter
-            // en el campo material). Si no hay filtros seleccionados, trae
-            // todos los resultados; nunca se llama automáticamente al entrar.
+            // ── Cargar tabla con filtros ──────────────────────────
             function cargarTabla() {
                 const proyecto   = $('#filtro-proyecto').val();
                 const fechaDesde = $('#filtro-fecha-desde').val();
@@ -351,12 +311,18 @@
 
                 const url = params.toString() ? ruta + '?' + params.toString() : ruta;
 
-                mostrarLoading();
+                // Mostrar loading antes de la petición
+                $('#tablaDatatable').html(`
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                            <span class="sr-only">Cargando...</span>
+                        </div>
+                        <p class="mt-3 text-muted">Cargando historial de salidas...</p>
+                    </div>
+                `);
 
                 $('#tablaDatatable').load(url, function () {
-                    if ($('#tabla').length) {
-                        initDataTable();
-                    }
+                    initDataTable();
                 });
             }
 
@@ -367,11 +333,10 @@
                 $('#filtro-fecha-desde').val('');
                 $('#filtro-fecha-hasta').val('');
                 $('#filtro-material').val('');
-                mostrarPlaceholder();
+                cargarTabla();
             };
 
-            // Nota: ya NO se llama cargarTabla() al inicio.
-            // La tabla se mantiene vacía (placeholder) hasta que el usuario filtre.
+            cargarTabla();
         });
     </script>
 
@@ -428,7 +393,7 @@
                                 'tiene fecha de ingreso <b>' + response.data.fecha_ingreso + '</b>.<br><br>' +
                                 'La fecha de salida (<b>' + response.data.fecha_salida + '</b>) ' +
                                 'no puede ser anterior al ingreso.',
-                            type: 'warning',
+                            icon: 'warning',
                             confirmButtonColor: '#d33',
                             confirmButtonText: 'Entendido'
                         });
@@ -490,33 +455,16 @@
                     $('#detalle-loading').hide();
                     if (response.data.success === 1 && response.data.detalle.length > 0) {
                         let html = '';
-                        let totalGeneral = 0;
-
                         response.data.detalle.forEach((fila, index) => {
-                            const precioNum = parseFloat(fila.precio_raw ?? fila.precio) || 0;
-                            const cantidad  = parseFloat(fila.cantidad_salida) || 0;
-                            const total     = precioNum * cantidad;
-                            totalGeneral   += total;
-
                             html += `
                                 <tr>
                                     <td>${index + 1}</td>
                                     <td>${fila.codigo}</td>
                                     <td>${fila.material}</td>
-                                    <td class="text-center">${fila.unidad_medida}</td>
                                     <td class="text-center">${fila.cantidad_salida}</td>
                                     <td class="text-right">$${fila.precio}</td>
-                                    <td class="text-right">$${total.toFixed(2)}</td>
                                 </tr>`;
                         });
-
-                        html += `
-                            <tr class="font-weight-bold" style="background-color:#f8f9fa;">
-                                <td colspan="5" class="text-right">Total general</td>
-                                <td></td>
-                                <td class="text-right">$${totalGeneral.toFixed(2)}</td>
-                            </tr>`;
-
                         $('#detalle-tbody').html(html);
                         $('#detalle-contenido').show();
                     } else {
